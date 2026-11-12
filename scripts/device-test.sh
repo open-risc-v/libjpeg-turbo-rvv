@@ -22,49 +22,49 @@ BUILD_A=${BUILD_A:-build/device-a}
 BUILD_B=${BUILD_B:-build/device-b}
 
 adb_s() {
-  if [ -n "$SERIAL" ]; then adb -s "$SERIAL" "$@"; else adb "$@"; fi
+  if [ -n "${SERIAL}" ]; then adb -s "${SERIAL}" "$@"; else adb "$@"; fi
 }
 
 ensure_image() {
-  docker image inspect "$BUILDENV_IMAGE" >/dev/null 2>&1 || {
+  docker image inspect "${BUILDENV_IMAGE}" >/dev/null 2>&1 || {
     echo "== 构建 docker buildenv（一次）"
-    docker build -q -t "$BUILDENV_IMAGE" -f scripts/Dockerfile.buildenv scripts/
+    docker build -q -t "${BUILDENV_IMAGE}" -f scripts/Dockerfile.buildenv scripts/
   }
 }
 
 do_build() {
   # 每次清空：内核开关变化时增量构建会留下陈旧对象，测出来的数字是混合二进制
-  rm -rf "$BUILD_A" "$BUILD_B"
+  rm -rf "${BUILD_A}" "${BUILD_B}"
   ensure_image
-  docker run --rm -v "$PWD":/work -w /work \
-    -e RVV_MARCH="$RVV_MARCH" -e BUILD_A="$BUILD_A" -e BUILD_B="$BUILD_B" \
-    "$BUILDENV_IMAGE" bash -euc '
+  docker run --rm -v "${PWD}":/work -w /work \
+    -e RVV_MARCH="${RVV_MARCH}" -e BUILD_A="${BUILD_A}" -e BUILD_B="${BUILD_B}" \
+    "${BUILDENV_IMAGE}" bash -euc '
     common=(-DCMAKE_BUILD_TYPE=Release
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-linux.cmake
-            -D_USE_RVV=ON -DRVV_MARCH=$RVV_MARCH
+            -D_USE_RVV=ON -DRVV_MARCH=${RVV_MARCH}
             -DCMAKE_EXE_LINKER_FLAGS=-static)
-    cmake -S . -B "$BUILD_A" "${common[@]}"
-    cmake --build "$BUILD_A" -j"$(nproc)"
-    cmake -S . -B "$BUILD_B" "${common[@]}" -DSRC_DIR=/work/baseline -DRVV_KERNELS=OFF
-    cmake --build "$BUILD_B" -j"$(nproc)"
+    cmake -S . -B "${BUILD_A}" "${common[@]}"
+    cmake --build "${BUILD_A}" -j"$(nproc)"
+    cmake -S . -B "${BUILD_B}" "${common[@]}" -DSRC_DIR=/work/baseline -DRVV_KERNELS=OFF
+    cmake --build "${BUILD_B}" -j"$(nproc)"
   '
 }
 
 do_deploy() {
-  adb_s shell "mkdir -p $REMOTE/a $REMOTE/b $REMOTE/data"
-  adb_s push "$BUILD_A/cpu_probe" "$BUILD_A/diff_kernels" "$REMOTE/a/" >/dev/null
-  adb_s push "$BUILD_B/cpu_probe" "$REMOTE/b/" >/dev/null
+  adb_s shell "mkdir -p ${REMOTE}/a ${REMOTE}/b ${REMOTE}/data"
+  adb_s push "${BUILD_A}/cpu_probe" "${BUILD_A}/diff_kernels" "${REMOTE}/a/" >/dev/null
+  adb_s push "${BUILD_B}/cpu_probe" "${REMOTE}/b/" >/dev/null
   # cases 目录整个推上去，保证脚本与数据同源
-  adb_s push test "$REMOTE/" >/dev/null
-  echo "== 已部署到 $REMOTE"
+  adb_s push test "${REMOTE}/" >/dev/null
+  echo "== 已部署到 ${REMOTE}"
 }
 
 do_ab() {
-  adb_s shell "cd $REMOTE && RVV_A=$REMOTE/a RVV_B=$REMOTE/b sh test/run_ab.sh"
+  adb_s shell "cd ${REMOTE} && RVV_A=${REMOTE}/a RVV_B=${REMOTE}/b sh test/run_ab.sh"
 }
 
 do_bench() {
-  adb_s shell "cd $REMOTE && RVV_A=$REMOTE/a RVV_B=$REMOTE/b REPS=$BENCH_REPS sh benchmark/pair_bench.sh"
+  adb_s shell "cd ${REMOTE} && RVV_A=${REMOTE}/a RVV_B=${REMOTE}/b REPS=${BENCH_REPS} sh benchmark/pair_bench.sh"
 }
 
 case "${1:-all}" in
