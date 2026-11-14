@@ -39,8 +39,10 @@ int main(int argc, char **argv)
 		jpeg_set_quality(&ci, 90, TRUE);
 		double t0 = now_ns();
 		jpeg_start_compress(&ci, TRUE);
-		while (ci.next_scanline < ci.image_height)
-			jpeg_write_scanlines(&ci, (JSAMPARRAY)&rgb[ci.next_scanline * W * 3], 1);
+		while (ci.next_scanline < ci.image_height) {
+			JSAMPLE *row = (JSAMPLE *)(rgb + (size_t)ci.next_scanline * W * 3);
+			jpeg_write_scanlines(&ci, &row, 1);   /* JSAMPARRAY 是"行指针的数组"，不是行首地址 */
+		}
 		jpeg_finish_compress(&ci);
 		double dt = now_ns() - t0;
 		if (dt < best_c) best_c = dt;
@@ -57,8 +59,10 @@ int main(int argc, char **argv)
 		di.out_color_space = JCS_RGB;
 		t0 = now_ns();
 		jpeg_start_decompress(&di);
-		while (di.output_scanline < di.output_height)
-			jpeg_read_scanlines(&di, (JSAMPARRAY)&rgb[di.output_scanline * W * 3], 1);
+		while (di.output_scanline < di.output_height) {
+			JSAMPLE *row = (JSAMPLE *)(rgb + (size_t)di.output_scanline * W * 3);
+			jpeg_read_scanlines(&di, &row, 1);
+		}
 		jpeg_finish_decompress(&di);
 		double dt2 = now_ns() - t0;
 		if (dt2 < best_d) best_d = dt2;
